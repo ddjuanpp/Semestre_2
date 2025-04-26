@@ -33,44 +33,32 @@ Esta aplicación utiliza **inteligencia artificial** para proporcionar respuesta
 
 ## 🛠️ Implementación del proyecto
 
-Si quieres implementar este proyecto desde cero, sigue estos pasos:
+Esta aplicación fue desarrollada como parte de un proyecto personal para explorar las capacidades de la IA en el ámbito del comercio electrónico.
 
 ### Requisitos previos
 - Python 3.8 o superior
-- Pip (gestor de paquetes de Python)
-- Una API key de Google Gemini o Mistral AI
+- Las bibliotecas listadas en `requirements.txt`
+- Acceso a la API de Google Gemini y Mistral AI
 
-### Instalación
+### Configuración del entorno
 
-1. **Clona el repositorio**
-   ```bash
-   git clone https://github.com/tuusuario/guiashipping.git
-   cd guiashipping
+1. **Instalación de dependencias**
    ```
-
-2. **Crea un entorno virtual**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # En Windows: venv\Scripts\activate
-   ```
-
-3. **Instala las dependencias**
-   ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configura las variables de entorno**
+2. **Configuración de las API Keys**
    
-   Crea un archivo `.env` en la raíz del proyecto con:
+   Debes crear un archivo `.env` en la carpeta del proyecto:
    ```
-   GEMINI_API_KEY=tu_api_key_aqui
-   MISTRAL_API_KEY=tu_api_key_aqui_si_usas_mistral
+   GEMINI_API_KEY=tu_api_key_de_gemini
+   MISTRAL_API_KEY=tu_api_key_de_mistral
    ```
 
 ### Estructura del proyecto
 
 ```
-guiashipping/
+proyecto/
 ├── app.py               # Aplicación principal (Streamlit)
 ├── AI_model.py          # Configuración del modelo de IA
 ├── documentos.py        # Gestión de documentos
@@ -82,74 +70,28 @@ guiashipping/
 
 ### Componentes principales
 
-#### 1. AI_model.py
-Este archivo configura la conexión con el modelo de lenguaje (Google Gemini 1.5 Flash).
-```python
-# Configuración básica del modelo
-def analizar_documento_solo_texto(prompt):
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash-8b")
-    response = model.generate_content(prompt)
-    return response.text
-```
+#### 1. Modelo de IA (AI_model.py)
+Este componente gestiona la conexión con el modelo de lenguaje (Google Gemini) y procesa las consultas del usuario para generar respuestas naturales y útiles sobre dropshipping.
 
-#### 2. faiss_manager.py
-Implementa un índice vectorial FAISS para búsqueda semántica.
-```python
-# Creación de índice FAISS
-def create_faiss_index(self, documents):
-    self.documents = documents
-    self.texts = [doc.page_content for doc in documents]
-    self.embedding_model = MistralAIEmbeddings(api_key=self.api_key)
-    self.embeddings = self.embedding_model.embed_documents(self.texts)
-    self.index = faiss.IndexFlatL2(len(self.embeddings[0]))
-    faiss.normalize_L2(np.array(self.embeddings, dtype=np.float32))
-    self.index.add(np.array(self.embeddings, dtype=np.float32))
-```
+#### 2. Búsqueda Semántica (faiss_manager.py)
+Implementa un índice vectorial FAISS para encontrar información relevante en el documento de referencia, permitiendo respuestas precisas basadas en el contexto.
 
-#### 3. documentos.py
-Maneja la carga y procesamiento de documentos.
-```python
-# Carga de documentos PDF
-def add_document(self, file_obj):
-    pdf_reader = PyPDF2.PdfReader(file_obj)
-    text = ""
-    for page_num in range(len(pdf_reader.pages)):
-        page = pdf_reader.pages[page_num]
-        text += page.extract_text()
-    self.documents.append(Document(page_content=text))
-```
+#### 3. Procesamiento de Documentos (documentos.py)
+Se encarga de cargar y extraer texto de documentos PDF, que luego son utilizados como fuente de conocimiento por el asistente.
 
-#### 4. app.py
-Aplicación principal con Streamlit, implementa la interfaz de usuario y la lógica de la aplicación.
+#### 4. Interfaz de Usuario (app.py)
+Construida con Streamlit, proporciona una experiencia amigable y responsive para que los usuarios interactúen con el asistente de IA.
 
 ### Ejecución
 
 Para ejecutar la aplicación:
-```bash
+```
 streamlit run app.py
 ```
 
 ### Personalización
 
-- **Documento de referencia**: Reemplaza DROPSHIPPING.pdf con tu propio documento
-- **Modelo de IA**: Puedes cambiar el modelo en AI_model.py (ej. OpenAI, Claude)
-- **Diseño**: Modifica el CSS en app.py para cambiar la apariencia
-
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
----
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Para cambios importantes, abre primero un issue para discutir lo que te gustaría cambiar.
-
----
-
-## 📞 Contacto
-
-Si tienes preguntas o sugerencias, contáctame en [tu-email@ejemplo.com](mailto:tu-email@ejemplo.com). 
+Se puede adaptar fácilmente para otros dominios modificando:
+- El documento de referencia
+- Las instrucciones del sistema en AI_model.py
+- El diseño CSS en app.py
