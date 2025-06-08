@@ -1,9 +1,10 @@
 import streamlit as st
 import os
 from documentos import DocumentUploader
-from AI_model import analizar_documento_solo_texto
+from AI_model import analizar_documento_solo_texto, analizar_con_datos_productos
 from faiss_manager import FAISSManager
 from dotenv import load_dotenv
+import re
 
 # ===== CARGA DE VARIABLES DE ENTORNO =====
 load_dotenv()
@@ -25,11 +26,90 @@ st.set_page_config(
 # ===== INICIALIZACIÓN DE ESTADO DE SESIÓN =====
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "use_web_search" not in st.session_state:
+    st.session_state.use_web_search = "auto"  # auto, si, no
 
 # Función para limpiar el historial de chat
 def limpiar_chat():
     st.session_state.messages = []
     # No usar st.rerun() aquí porque no funciona en callbacks
+
+# Función para detectar si una consulta necesita búsqueda web
+def necesita_analisis_productos(mensaje):
+    """Detecta automáticamente si una consulta se beneficiaría de análisis de productos"""
+    palabras_clave_productos = [
+        'nicho', 'nichos', 'producto', 'productos', 'precio', 'precios',
+        'margen', 'ganancia', 'rentable', 'vender', 'dropshipping',
+        'aliexpress', 'amazon', 'competencia', 'proveedor', 'proveedores',
+        'qué vender', 'mejores productos', 'análisis de mercado',
+        'oportunidad', 'saturado', 'demanda', 'tendencia'
+    ]
+    
+    mensaje_lower = mensaje.lower()
+    for palabra in palabras_clave_productos:
+        if palabra in mensaje_lower:
+            return True
+    return False
+
+# Función para obtener respuesta inteligente
+def obtener_respuesta_inteligente(user_message, context=""):
+    """Obtiene respuesta usando la mejor estrategia según el tipo de consulta"""
+    try:
+        # Determinar qué tipo de análisis usar
+        if st.session_state.use_web_search == "productos":
+            # Análisis de productos forzado
+            return analizar_con_datos_productos(user_message), "📊 Análisis con datos de productos"
+                
+        elif st.session_state.use_web_search == "basico":
+            # Sin análisis de productos
+            if context:
+                prompt = f"""Usa el siguiente contexto para responder a la consulta del usuario sobre dropshipping.
+
+Contexto:
+{context}
+
+Consulta:
+{user_message}
+
+Recuerda ser conversacional y amigable, como un mentor experto en e-commerce."""
+            else:
+                prompt = f"""Analiza la siguiente consulta de dropshipping y proporciona información detallada.
+
+Consulta:
+{user_message}
+
+Recuerda ser conversacional y amigable, enfocándote exclusivamente en temas de dropshipping."""
+            
+            return analizar_documento_solo_texto(prompt), "📝 Respuesta básica"
+            
+        else:  # auto
+            # Detección automática
+            if necesita_analisis_productos(user_message):
+                return analizar_con_datos_productos(user_message), "📊 Análisis con datos de productos (detectado automáticamente)"
+            else:
+                # Usar contexto si está disponible
+                if context:
+                    prompt = f"""Usa el siguiente contexto para responder a la consulta del usuario sobre dropshipping.
+
+Contexto:
+{context}
+
+Consulta:
+{user_message}
+
+Recuerda ser conversacional y amigable, como un mentor experto en e-commerce."""
+                else:
+                    prompt = f"""Analiza la siguiente consulta de dropshipping y proporciona información detallada.
+
+Consulta:
+{user_message}
+
+Recuerda ser conversacional y amigable, enfocándote exclusivamente en temas de dropshipping."""
+                
+                return analizar_documento_solo_texto(prompt), "📝 Respuesta del conocimiento base"
+                
+    except Exception as e:
+        return f"❌ Ocurrió un error al procesar tu consulta: {str(e)}", "⚠️ Error"
 
 # ===== DISEÑO EN STREAMLIT (CSS) =====
 st.markdown("""
@@ -300,6 +380,55 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
+    # Configuración de búsqueda web
+    st.markdown("""
+    <div style="padding: 1rem; background: #fff3cd; border-radius: 8px; margin-top: 1rem;">
+        <h4 style="margin-top: 0; color: #856404;">🔍 Configuración de Búsqueda</h4>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    search_option = st.selectbox(
+        "Modo de análisis:",
+        options=["auto", "productos", "basico"],
+        format_func=lambda x: {
+            "auto": "🤖 Automático (recomendado)",
+            "productos": "📊 Con datos de productos",
+            "basico": "📝 Solo conocimiento base"
+        }[x],
+        index=0,
+        help="Automático: Usa datos de productos cuando detecta consultas sobre nichos/productos"
+    )
+    
+    st.session_state.use_web_search = search_option
+    
+    # Indicador visual del modo actual
+    if search_option == "auto":
+        st.info("🤖 **Modo Automático:** Detectará automáticamente cuándo analizar productos")
+    elif search_option == "productos":
+        st.warning("📊 **Análisis de Productos:** Todas las respuestas incluirán datos de productos")
+    else:
+        st.success("📝 **Modo Básico:** Solo usará el conocimiento base (más rápido)")
+    
+    # Ejemplos de consultas que activan análisis de productos
+    with st.expander("💡 ¿Qué consultas usan análisis de productos?"):
+        st.markdown("""
+        **En modo automático, estas consultas usarán datos de productos:**
+        - "¿Qué nicho es más rentable?"
+        - "Análisis de productos para mascotas"
+        - "Mejores productos para dropshipping"
+        - "¿Qué precios manejan en Amazon vs AliExpress?"
+        - "Análisis de competencia en..."
+        - "Margen de ganancia en..."
+        
+        **Estas usarán conocimiento base:**
+        - "¿Cómo funciona el dropshipping?"
+        - "Pasos para crear una tienda"
+        - "Consejos de marketing general"
+        - "Gestión de proveedores"
+        """)
+    
+    st.markdown("---")
+    
     # Cargar el documento en segundo plano sin mostrar mensajes
     if os.path.exists(pdf_path):
         with open(pdf_path, "rb") as f:
@@ -320,9 +449,10 @@ with st.sidebar:
         <p style="font-size: 0.9rem; color: #333;">Características principales:</p>
         <ul class="benefits-list">
             <li>Respuestas detalladas y precisas</li>
+            <li>Análisis de nichos con datos de productos</li>
+            <li>Comparación automática Amazon vs AliExpress</li>
             <li>Ejemplos prácticos y consejos</li>
             <li>Interfaz amigable e intuitiva</li>
-            <li>Procesamiento rápido de consultas</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -409,13 +539,17 @@ for message in st.session_state.messages:
     content = content.replace("</", "").replace("<", "")
     content = content.replace("`</div>`", "").replace("`<div>`", "")
     
+    # Mostrar indicador de tipo de respuesta si está disponible
+    analysis_type = message.get("analysis_type", "")
+    type_indicator = f"<small style='color: #666; font-style: italic;'>{analysis_type}</small><br>" if analysis_type else ""
+    
     st.markdown(f"""
     <div class="{sender_class}">
         <div class="message-header">
             <span class="message-sender">{sender_name}</span>
             <span class="message-time">{message["time"]}</span>
         </div>
-        {content}
+        {type_indicator}{content}
     """, unsafe_allow_html=True)
 
 st.markdown("""
@@ -447,52 +581,29 @@ if send_clicked and user_message.strip():
         "time": current_time
     })
     
-    # Generar respuesta
-    with st.spinner("El asistente está pensando..."):
+    # Generar respuesta usando la función inteligente
+    spinner_text = "📊 Analizando productos..." if (st.session_state.use_web_search == "productos" or 
+                   (st.session_state.use_web_search == "auto" and necesita_analisis_productos(user_message))) else "El asistente está pensando..."
+    
+    with st.spinner(spinner_text):
+        context = ""
         if documento_cargado:
             try:
                 # Buscar fragmentos relevantes en el documento
                 top_chunks = faiss_manager.search_similar_chunks(user_message, k=2)
                 context = "\n\n".join(top_chunks)
-                
-                # Construir prompt con contexto
-                prompt = f"""Usa el siguiente contexto para responder a la consulta del usuario sobre dropshipping.
-Si la consulta es sobre nichos de mercado o productos específicos, complementa la información
-del contexto con recomendaciones actualizadas sobre tendencias y oportunidades específicas.
-
-Contexto:
-{context}
-
-Consulta:
-{user_message}
-
-Recuerda ser conversacional y amigable, como un mentor experto en e-commerce hablando con 
-un emprendedor. No menciones que estás utilizando un contexto o documento específico."""
-                
-                # Obtener respuesta del modelo
-                response = analizar_documento_solo_texto(prompt)
-            except Exception as e:
-                response = f"❌ Ocurrió un error al procesar tu consulta: {str(e)}"
-        else:
-            # Si no hay documento, usar conocimiento general
-            prompt = f"""Analiza la siguiente consulta de dropshipping y proporciona información detallada.
-Si la consulta es sobre nichos de mercado o productos específicos, proporciona recomendaciones actualizadas
-basadas en tu conocimiento del comercio electrónico y tendencias actuales.
-
-Consulta:
-{user_message}
-
-Recuerda ser conversacional y amigable, enfocándote exclusivamente en temas de dropshipping.
-Si la consulta no está relacionada con el dropshipping, redirige amablemente la conversación
-hacia temas de comercio electrónico."""
-            
-            response = analizar_documento_solo_texto(prompt)
+            except Exception:
+                context = ""
+        
+        # Obtener respuesta usando la función inteligente
+        response, analysis_type = obtener_respuesta_inteligente(user_message, context)
     
-    # Guardar respuesta del asistente
+    # Guardar respuesta del asistente con el tipo de análisis
     st.session_state.messages.append({
         "role": "assistant",
         "content": response,
-        "time": datetime.now().strftime("%H:%M")
+        "time": datetime.now().strftime("%H:%M"),
+        "analysis_type": analysis_type
     })
     
     # No intentar modificar st.session_state.user_input directamente
